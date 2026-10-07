@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>단어 찾기 퍼즐</title>
+<style>
+:root{
+  --bg:#ffffff; --panel:#f5f6f8; --ink:#1f2430; --sub:#5b6472;
+  --line:#dcdfe4; --cell-line:#d7dade; --accent:#2f6fed; --accent-ink:#ffffff;
+  --grayfill:#eef0f3;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1b1e24; --panel:#252932; --ink:#eceef2; --sub:#a7adba;
+    --line:#3a3f4a; --cell-line:#3a3f4a; --accent:#5b8bff; --accent-ink:#0b0d10;
+    --grayfill:#2c313b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1e24; --panel:#252932; --ink:#eceef2; --sub:#a7adba;
+  --line:#3a3f4a; --cell-line:#3a3f4a; --accent:#5b8bff; --accent-ink:#0b0d10;
+  --grayfill:#2c313b;
+}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Malgun Gothic","맑은 고딕",Arial,sans-serif;
+}
+.sheet{ max-width:800px; margin:0 auto; padding:20px 16px 60px; }
+h1{ font-size:1.5rem; margin:.2em 0; }
+.meta{ color:var(--sub); font-size:.9rem; margin-bottom:14px; }
+.meta span{ display:inline-block; min-width:160px; border-bottom:1px solid var(--line); padding-bottom:2px; margin-right:20px;}
+.panel{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:18px; }
+.panel label{ font-size:.9rem; color:var(--sub); display:block; margin-bottom:6px;}
+textarea{
+  width:100%; min-height:70px; border-radius:8px; border:1px solid var(--line);
+  background:var(--bg); color:var(--ink); font-size:.95rem; padding:8px; resize:vertical;
+  font-family:inherit; box-sizing:border-box;
+}
+.row{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+button{
+  border:none; border-radius:8px; padding:9px 16px; font-size:.9rem; cursor:pointer;
+  background:var(--accent); color:var(--accent-ink); font-weight:600;
+}
+button.ghost{ background:transparent; color:var(--accent); border:1px solid var(--accent); }
+.hint{ font-size:.78rem; color:var(--sub); margin-top:6px; }
+.grid-wrap{ page-break-inside:avoid; margin:0 auto 22px; width:min(94vw, 72vh); max-width:100%; aspect-ratio:1/1; }
+.page1{ display:flex; flex-direction:column; align-items:center; }
+table.grid{ border-collapse:collapse; width:100%; height:100%; table-layout:fixed; }
+table.grid td{
+  border:1px solid var(--cell-line); text-align:center; vertical-align:middle;
+  font-weight:700; font-family:Arial,Helvetica,sans-serif;
+  padding:0; font-size:clamp(9px, 2.1vw, 26px); color:var(--ink);
+  user-select:none; -webkit-user-select:none; cursor:pointer;
+}
+table.grid td.sel{ background:#ffe28a; }
+table.grid td.found{ background:#8ee6a1; }
+.words tr.done td{ text-decoration:line-through; color:var(--sub); }
+@media (min-width:700px){ table.grid td{ font-size:20px; } }
+h2{ font-size:1.1rem; margin:18px 0 8px; }
+table.words{ border-collapse:collapse; width:100%; }
+table.words thead{ display:table-header-group; }
+table.words th, table.words td{
+  border:1px solid var(--line); padding:6px 8px; font-size:.92rem; text-align:left;
+}
+table.words tr{ page-break-inside:avoid; }
+table.words th{ background:var(--panel); }
+.blankline{ display:inline-block; min-width:180px; border-bottom:1px solid var(--line); height:1.2em; }
+.edit-toggle{ font-size:.85rem; color:var(--accent); background:none; border:none; text-decoration:underline; padding:0; cursor:pointer; }
+.no-print{}
+@media print{
+  .no-print{ display:none !important; }
+  body{ background:#fff; color:#000; }
+  .sheet{ max-width:none; padding:0; }
+  @page{ size:A4; margin:14mm; }
+  .panel{ display:none !important; }
+  h1{ margin:0 0 4px; font-size:1.3rem; }
+  .meta{ margin-bottom:8px; }
+  .grid-wrap{ margin:0; width:100%; aspect-ratio:auto; height:242mm; page-break-after:always; }
+  table.grid td{ font-size:7mm; color:#000; }
+  .words-page{ page-break-before:always; }
+}
+</style>
+</head>
+<body>
+<div class="sheet">
+ <div class="page1">
+  <h1 id="title">단어 찾기 퍼즐 (Word Search)</h1>
+  <div class="meta"><span>이름: </span><span>날짜: </span></div>
+
+  <div class="panel no-print" id="teacherPanel">
+    <label>영어 단어 입력 (콤마 , 또는 줄바꿈으로 구분)</label>
+    <textarea id="wordsInput">park, lake, market, cheese, type, bridge, hospital, over, front, between</textarea>
+    <div class="row">
+      <button id="genBtn">퍼즐 생성</button>
+      <button id="saveBtn">저장하기</button>
+      <button class="ghost" id="printBtn">인쇄 / PDF로 저장</button>
+    </div>
+    <div class="hint">15×15 격자에 가로(→), 세로(↓), 대각선(↘ ↙)만 사용해 단어를 배치합니다. 저장하면 학생용 화면으로 전환됩니다.</div>
+  </div>
+
+  <button class="edit-toggle no-print" id="editBtn" style="display:none;">✎ 편집으로 돌아가기</button>
+  <button class="ghost no-print" id="printBtn2" style="display:none;margin:10px 0;">인쇄 / PDF로 저장</button>
+
+  <div class="grid-wrap">
+    <table class="grid" id="grid"></table>
+  </div>
+ </div>
+
+ <div class="words-page">
+  <h2>단어 목록</h2>
+  <table class="words">
+    <thead><tr><th style="width:40px;">번호</th><th>영어 단어</th><th>한글 뜻</th></tr></thead>
+    <tbody id="wordsBody"></tbody>
+  </table>
+ </div>
+</div>
+
+<script>
+const SIZE = 15;
+const DIRS = [[1,0],[0,1],[1,1],[-1,1]]; // →, ↓, ↘, ↙  (모두 아래/오른쪽 방향의 정방향)
+
+function normalizeWords(text){
+  return text.split(/[,\n]/).map(w=>w.trim().toUpperCase()).filter(w=>w.length>0 && /^[A-Z]+$/.test(w));
+}
+
+function buildGrid(words){
+  const grid = Array.from({length:SIZE},()=>Array(SIZE).fill(null));
+  const placed = [];
+  words.sort((a,b)=>b.length-a.length).forEach(word=>{
+    if(word.length>SIZE) return; // 격자보다 긴 단어는 건너뜀
+    let done=false;
+    // 1) 무작위 시도
+    for(let t=0;t<400 && !done;t++){
+      const dir = DIRS[Math.floor(Math.random()*DIRS.length)];
+      if(tryPlace(grid,word,dir,true)) done=true;
+    }
+    // 2) 실패 시 모든 위치를 순서대로 탐색
+    if(!done){
+      outer:
+      for(const dir of DIRS){
+        for(let r=0;r<SIZE;r++){
+          for(let c=0;c<SIZE;c++){
+            if(tryPlace(grid,word,dir,false,r,c)){ done=true; break outer; }
+          }
+        }
+      }
+    }
+    if(done) placed.push(word);
+  });
+  // 빈칸 채우기
+  const AZ="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++)
+    if(!grid[r][c]) grid[r][c]=AZ[Math.floor(Math.random()*26)];
+  return {grid, placed};
+
+  function fits(r,c,dir,len){
+    const er = r+(len-1)*dir[1], ec = c+(len-1)*dir[0];
+    return er>=0 && er<SIZE && ec>=0 && ec<SIZE;
+  }
+  function tryPlace(grid,word,dir,random,fr,fc){
+    let r,c;
+    if(random){
+      r = Math.floor(Math.random()*SIZE);
+      c = Math.floor(Math.random()*SIZE);
+    } else { r=fr; c=fc; }
+    if(!fits(r,c,dir,word.length)) return false;
+    for(let i=0;i<word.length;i++){
+      const rr=r+i*dir[1], cc=c+i*dir[0];
+      const existing = grid[rr][cc];
+      if(existing && existing!==word[i]) return false;
+    }
+    for(let i=0;i<word.length;i++){
+      const rr=r+i*dir[1], cc=c+i*dir[0];
+      grid[rr][cc]=word[i];
+    }
+    return true;
+  }
+}
+
+function render(words, grid){
+  const table = document.getElementById('grid');
+  table.innerHTML='';
+  for(let r=0;r<SIZE;r++){
+    const tr=document.createElement('tr');
+    for(let c=0;c<SIZE;c++){
+      const td=document.createElement('td');
+      td.textContent=grid[r][c];
+      td.dataset.r=r; td.dataset.c=c;
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  const body=document.getElementById('wordsBody');
+  body.innerHTML='';
+  words.forEach((w,i)=>{
+    const tr=document.createElement('tr');
+    tr.dataset.word=w;
+    tr.innerHTML = `<td>${i+1}</td><td>${w.charAt(0)+w.slice(1).toLowerCase()}</td><td><span class="blankline"></span></td>`;
+    body.appendChild(tr);
+  });
+  currentWords = words; currentGrid = grid;
+  setupSelection(table);
+}
+
+let currentWords=[], currentGrid=null;
+
+function setupSelection(table){
+  let dragging=false, start=null, cells=[];
+
+  function cellAt(target){
+    const td = target && target.closest ? target.closest('td') : null;
+    if(!td || !table.contains(td)) return null;
+    return {r:+td.dataset.r, c:+td.dataset.c, el:td};
+  }
+  function clearTemp(){ cells.forEach(c=>c.el.classList.remove('sel')); cells=[]; }
+  function lineCells(a,b){
+    const dr=Math.sign(b.r-a.r), dc=Math.sign(b.c-a.c);
+    if(dr!==0 && dc!==0 && Math.abs(b.r-a.r)!==Math.abs(b.c-a.c)) return null; // 직선이 아님
+    const len = Math.max(Math.abs(b.r-a.r), Math.abs(b.c-a.c))+1;
+    const out=[];
+    for(let i=0;i<len;i++){
+      const r=a.r+dr*i, c=a.c+dc*i;
+      const td = table.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+      if(!td) return null;
+      out.push({r,c,el:td});
+    }
+    return out;
+  }
+  function wordFromCells(list){ return list.map(x=>x.el.textContent).join(''); }
+  function finish(){
+    if(cells.length>1){
+      const w = wordFromCells(cells);
+      const rev = w.split('').reverse().join('');
+      const match = currentWords.find(x=>x===w || x===rev);
+      if(match){
+        cells.forEach(c=>{ c.el.classList.remove('sel'); c.el.classList.add('found'); });
+        const row = document.querySelector(`#wordsBody tr[data-word="${match}"]`);
+        if(row) row.classList.add('done');
+        cells=[];
+        dragging=false; start=null;
+        return;
+      }
+    }
+    clearTemp(); dragging=false; start=null;
+  }
+  function pointerDown(e){
+    const cell = cellAt(e.target);
+    if(!cell) return;
+    dragging=true; start=cell; clearTemp();
+    cells=[cell]; cell.el.classList.add('sel');
+    e.preventDefault();
+  }
+  function pointerMove(clientX, clientY){
+    if(!dragging) return;
+    const el = document.elementFromPoint(clientX, clientY);
+    const cell = cellAt(el);
+    if(!cell) return;
+    const line = lineCells(start, cell);
+    if(!line) return;
+    clearTemp();
+    cells = line; cells.forEach(c=>c.el.classList.add('sel'));
+  }
+  table.addEventListener('mousedown', pointerDown);
+  document.addEventListener('mousemove', e=>pointerMove(e.clientX, e.clientY));
+  document.addEventListener('mouseup', ()=>{ if(dragging) finish(); });
+  table.addEventListener('touchstart', e=>{ pointerDown(e.touches[0]); }, {passive:false});
+  table.addEventListener('touchmove', e=>{ e.preventDefault(); const t=e.touches[0]; pointerMove(t.clientX, t.clientY); }, {passive:false});
+  table.addEventListener('touchend', ()=>{ if(dragging) finish(); });
+}
+
+function generate(){
+  const words = normalizeWords(document.getElementById('wordsInput').value);
+  const {grid, placed} = buildGrid(words);
+  render(placed, grid);
+  return {placed, grid};
+}
+
+function setStudentMode(on){
+  document.getElementById('teacherPanel').style.display = on ? 'none' : 'block';
+  document.getElementById('editBtn').style.display = on ? 'inline-block' : 'none';
+  document.getElementById('printBtn2').style.display = on ? 'inline-block' : 'none';
+}
+
+document.getElementById('genBtn').addEventListener('click', generate);
+document.getElementById('printBtn').addEventListener('click', ()=>window.print());
+document.getElementById('printBtn2').addEventListener('click', ()=>window.print());
+document.getElementById('editBtn').addEventListener('click', ()=>setStudentMode(false));
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  const {placed, grid} = generate();
+  try{
+    localStorage.setItem('wordsearch_puzzle', JSON.stringify({placed, grid}));
+  }catch(e){ /* storage unavailable, continue without saving */ }
+  setStudentMode(true);
+});
+
+// 초기 로드: 저장된 퍼즐이 있으면 복원, 없으면 기본 단어로 생성
+(function init(){
+  try{
+    const saved = localStorage.getItem('wordsearch_puzzle');
+    if(saved){
+      const {placed, grid} = JSON.parse(saved);
+      render(placed, grid);
+      setStudentMode(true);
+      return;
+    }
+  }catch(e){}
+  generate();
+})();
+</script>
+</body>
+</html>
